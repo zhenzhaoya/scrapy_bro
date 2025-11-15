@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electron 浏览器</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="browser-container">
+        <!-- 导航栏 -->
+        <div class="navbar">
+            <div class="nav-controls">
+                <button id="back-btn" class="nav-btn" title="后退">
+                    <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                    </svg>
+                </button>
+                <button id="forward-btn" class="nav-btn" title="前进">
+                    <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                    </svg>
+                </button>
+                <button id="reload-btn" class="nav-btn" title="重新加载">
+                    <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor"
+                            d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                    </svg>
+                </button>
+                <button id="home-btn" class="nav-btn" title="主页">
+                    <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 地址栏 -->
+            <div class="address-bar">
+                <input type="text" id="url-input" placeholder="输入网址或搜索内容...">
+                <button id="go-btn">前往</button>
+            </div>
+
+            <div class="nav-actions">
+                <button id="menu-btn" class="nav-btn" title="菜单">
+                    <svg width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="currentColor"
+                            d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 网页视图容器 -->
+        <div class="content-area">
+            <webview id="webview" src="https://www.google.com" style="width: 100%; height: 100%" allowpopups></webview>
+            <WebContentsView id="web-contents-view" style="width: 100%; height: 100%; display: none;"></WebContentsView>
+            <!-- 启动页面 -->
+            <div id="start-page" class="start-page">
+                <div class="start-content">
+                    <h1>Electron 浏览器</h1>
+                    <div class="search-box">
+                        <input type="text" id="quick-search" placeholder="搜索或输入网址...">
+                        <button id="quick-go">搜索</button>
+                    </div>
+                    <div class="quick-links">
+                        <h3>常用网站</h3>
+                        <div class="links-grid">
+                            <a href="https://www.google.com" class="quick-link">Google</a>
+                            <a href="https://github.com" class="quick-link">GitHub</a>
+                            <a href="https://stackoverflow.com" class="quick-link">Stack Overflow</a>
+                            <a href="https://www.youtube.com" class="quick-link">YouTube</a>
+                            <a href="https://twitter.com" class="quick-link">Twitter</a>
+                            <a href="https://www.wikipedia.org" class="quick-link">Wikipedia</a>
+                        </div>
+                    </div>
+                    <!-- <div>
+                        <p>
+                            We are using Node.js <span id="node-version"></span>,
+                            Chromium <span id="chrome-version"></span>,
+                            and Electron <span id="electron-version"></span>.
+                        </p>
+                    </div> -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <span id="status-text">就绪</span>
+            <div class="status-controls">
+                <button id="devtools-btn" class="status-btn" title="开发者工具">DevTools</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
