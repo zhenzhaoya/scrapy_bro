@@ -1,0 +1,222 @@
+const path = require('path');
+const https = require('https');
+const { URL } = require('url');
+const fs = require('fs').promises;
+
+class HttpHandler {
+    constructor() {
+        // 基类构造函数
+        this.baseDir = path.join(__dirname, 'downloads');
+        this.logDomains = ['davidjones.com', 'davidjonesau']; // 需要记录日志的域名列表
+    }
+
+    // 保存 Buffer 数据
+    async saveBuffer(filename, buffer) {
+        try {
+            const filePath = path.join(this.baseDir, filename);
+            await fs.writeFile(filePath, buffer);
+            // console.log(`✅ Buffer 文件保存成功: ${filePath}`);
+            return filePath;
+        } catch (error) {
+            console.error('❌ 保存 Buffer 文件失败:', error);
+            throw error;
+        }
+    }
+
+    async log_response(request, response) {
+        var should_log = false;
+        for (let i = 0; i < this.logDomains.length; i++) {
+            if (request.url.split("?")[0].includes(this.logDomains[i])) {
+                should_log = true;
+                break;
+            }
+        }
+        if (!should_log || request.resourceType === 'image' || request.resourceType === 'font' || request.resourceType === 'stylesheet' || request.url.includes("_next/static")) {
+            // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
+            // new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
+            return;
+        }
+
+        const cloned = response;
+        let bodyPreview = '';
+
+        try {
+            const filename = `${request.method}_${Date.now()}_${request.url.split('?')[0].split('//')[1]}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100);
+
+            const req_headers = JSON.stringify(request.requestHeaders);
+            const resp_headers = JSON.stringify(cloned.headers);
+            var content = Buffer.from(request.method + " " + request.url.toString() + "\n" +
+                req_headers + "\n===========================\n"
+                + resp_headers + "\n===========================\n");
+
+            const content_resp = cloned.responseData;
+            if (request.method === 'POST') {
+                const content_req = await request.arrayBuffer()
+                content = content + Buffer.from(content_req) + Buffer.from("\n===========================\n") + Buffer.from(content_resp);
+            } else {
+                content = content + Buffer.from(content_resp);
+            }
+            bodyPreview = `保存响应内容到文件: ${filename} (大小: ${content.length} bytes)`;
+            await this.saveBuffer(filename, content);
+        } catch (error) {
+            bodyPreview = `[读取响应体失败: ${error.message}, ${request.url}]`;
+        }
+
+        console.log('📦 响应预览:', bodyPreview);
+    }
+
+    async handleHttpsRequest(request) {
+        const startTime = Date.now();
+        // console.log('🔗 处理 HTTPS 请求:', request.url);
+
+        try {
+            const url = new URL(request.url);
+
+            const options = {
+                hostname: url.hostname,
+                port: url.port || 443,
+                path: url.pathname + url.search,
+                method: request.method,
+                headers: request.headers, //this.prepareHeaders(request.headers),
+                rejectUnauthorized: false, // 允许自签名证书
+                timeout: 30000
+            };
+
+            // console.log('🔧 请求选项:', JSON.stringify({
+            //     hostname: options.hostname,
+            //     path: options.path,
+            //     method: options.method
+            // }));
+
+            const response = await this.makeHttpsRequest(options, request);
+            await this.log_response(request, response);
+
+            const duration = Date.now() - startTime;
+
+            // console.log(`✅ 请求成功: ${response.status} (${duration}ms)`);
+            return response;
+
+        } catch (error) {
+            console.error('❌ HTTPS 请求失败:', error);
+            return this.createErrorResponse(500, `HTTPS request failed: ${error.message}`);
+        }
+    }
+
+    createErrorResponse(status, message) {
+        const errorData = JSON.stringify({
+            error: true,
+            status: status,
+            message: message,
+            timestamp: new Date().toISOString()
+        });
+
+        return new Response(errorData, {
+            status: status,
+            headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
+        });
+    }
+
+    async handleRequestBody(req, originalRequest) {
+        if (originalRequest.body &&
+            originalRequest.method !== 'GET' &&
+            originalRequest.method !== 'HEAD') {
+
+            try {
+                const bodyBuffer = await originalRequest.arrayBuffer();
+                if (bodyBuffer.byteLength > 0) {
+                    req.write(Buffer.from(bodyBuffer));
+                    // console.log('📤 发送请求体:', bodyBuffer.byteLength, 'bytes');
+                }
+            } catch (error) {
+                console.warn('⚠️ 读取请求体失败:', error);
+            }
+        }
+    }
+
+    makeHttpsRequest(options, originalRequest) {
+        return new Promise((resolve, reject) => {
+            const chunks = [];
+            let responseHeaders = {};
+            let statusCode = 200;
+            let statusMessage = 'OK';
+
+            const req = https.request(options, (res) => {
+                statusCode = res.statusCode;
+                statusMessage = res.statusMessage;
+                responseHeaders = { ...res.headers };
+
+                // console.log('📨 收到响应:', JSON.stringify({
+                //     status: statusCode,
+                //     headers: Object.keys(responseHeaders)
+                // }));
+
+                res.on('data', (chunk) => {
+                    chunks.push(chunk);
+                });
+
+                res.on('end', () => {
+                    const responseData = Buffer.concat(chunks);
+
+                    // console.log('📦 响应数据长度:', responseData.length);
+
+                    const response = {
+                        status: statusCode,
+                        statusText: statusMessage,
+                        headers: responseHeaders,
+                        responseData: responseData
+                    };
+
+                    resolve(response);
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('❌ 请求错误:', error);
+                reject(error);
+            });
+
+            req.on('timeout', () => {
+                console.error('⏰ 请求超时');
+                req.destroy();
+                reject(new Error('Request timeout'));
+            });
+
+            // 处理请求体
+            this.handleRequestBody(req, originalRequest)
+                .then(() => {
+                    req.end();
+                })
+                .catch(reject);
+        });
+    }
+}
+
+module.exports = HttpHandler;
+// http_handler = new BrowserAppBase();
+
+
+// protocol.registerHttpProtocol('https', this.handleYazzRequest.bind(this));
+// const filter = {
+//   urls: ['<all_urls>'] // 拦截所有网址的请求
+// };
+// session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+//   var new_url = details.url;
+//   if (details.url.startsWith("https://") && !(details.resourceType === 'image' || details.resourceType === 'font' || details.resourceType === 'stylesheet' || details.url.includes("_next/static"))) {
+//     // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
+//     new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
+//     // callback({ cancel: false });
+//     if (new_url.indexOf("?") > 0) {
+//       new_url += "&_org_url=" + encodeURIComponent(details.url);
+//     } else {
+//       new_url += "?_org_url=" + encodeURIComponent(details.url);
+//     }
+//     console.log('onBeforeRequest:', new_url);
+//     // details.url = new_url;
+//     callback({ cancel: false, redirectURL: new_url});
+//   } else {
+//     callback({ cancel: false });
+//   }
+// });

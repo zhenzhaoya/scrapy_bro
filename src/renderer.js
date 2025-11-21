@@ -86,7 +86,7 @@ class BrowserRenderer {
 
         // 页面加载完成
         this.webview.addEventListener('load-commit', (e) => {
-            this.urlInput.value = e.url; // yazz
+            // this.urlInput.value = e.url; // yazz
             console.log (e.url)
             console.log (e)
             this.updateStatus('页面加载完成');
@@ -104,7 +104,8 @@ class BrowserRenderer {
         });
 
         // 导航状态变化
-        this.webview.addEventListener('did-navigate', () => {
+        this.webview.addEventListener('did-navigate', (e) => {
+            this.urlInput.value = e.url; // yazz
             this.updateNavigationButtons();
             this.hideStartPage();
         });

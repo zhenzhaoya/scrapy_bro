@@ -1,13 +1,43 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, session, protocol } = require('electron');
 const path = require('path');
+const https = require('https');
+const { URL } = require('url');
+const HttpHandler = require('./http_handler');
 
 class BrowserApp {
   constructor() {
     this.mainWindow = null;
     this.app = app;
-    
+    this.requestCache = new Map();
+    this.http_handler = new HttpHandler();
+    // 获取缓存目录
+    console.log('用户数据目录:', app.getPath('userData'));
+    console.log('缓存目录:', app.getPath('cache'));
+    console.log('临时目录:', app.getPath('temp'));
     this.setupApp();
   }
+
+  // async handleHttpsRequest(originalRequest) {
+
+  //   const response = await this.http_handler.handleHttpsRequest(originalRequest);
+
+  //   // const cookies = this.extractCookiesFromHeaders(response.headers);
+  //   // // const savedCookies = [];
+
+  //   // for (const cookie of cookies) {
+  //   //     await this.saveCookie(originalRequest.url, cookie);
+  //   // }
+  //   return response;
+
+  //   // return new Promise((resolve, reject) => {
+  //   //   const urlObj = new URL(originalRequest.url);
+  //   //   const options = {
+  //   //     method: originalRequest.method,
+  //   //     hostname: urlObj.hostname,
+  //   //     port: urlObj.port || 443,   
+  //   //   }
+  //   // });
+  // }
 
   setupApp() {
     // 应用准备就绪
@@ -15,19 +45,29 @@ class BrowserApp {
       this.createMainWindow();
       this.createMenu();
       this.setupIPC();
-      // this.app.on('activate', () => {
-      //   if (BrowserWindow.getAllWindows().length === 0) {
-      //     this.createMainWindow();
-      //   }
-      // });
-      this.mainWindow.webContents.openDevTools()
-    });
 
+      // session.defaultSession.webRequest.onSendHeaders((details, callback) => {
+      //   // console.log('发送请求头:', details.requestHeaders);
+      //   this.http_handler.handleHttpsRequest(details).then(() => {
+      //     console.log('保存完成:', details.url);
+      //   }).catch((err) => {
+      //     console.error('处理错误:', err);
+      //   });
+      // });
+      session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        this.http_handler.handleHttpsRequest(details).then(() => {
+          console.log('保存完成:', details.url.split('?')[0]);
+        }).catch((err) => {
+          console.error('处理错误:', err);
+        });
+        callback({ requestHeaders: details.requestHeaders });
+      });
+    });
     this.app.on('window-all-closed', () => {
       this.app.quit()
     });
-    this.app.commandLine.appendSwitch('remote-debugging-port', '9222');
-    this.app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
+    // this.app.commandLine.appendSwitch('remote-debugging-port', '9222');
+    // this.app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
     // this.app.commandLine.appendSwitch('disable-web-security');
     // this.app.commandLine.appendSwitch('disable-features', 'SameSiteByDefaultCookies');
   }
@@ -51,8 +91,6 @@ class BrowserApp {
 
     // 加载主页面
     this.mainWindow.loadFile('src/index.html');
-    // this.mainWindow.webContents.loadURL("https://www.priceline.com.au/");
-
     // 开发模式下打开开发者工具
     if (process.argv.includes('--dev')) {
       this.mainWindow.webContents.openDevTools();
@@ -67,10 +105,8 @@ class BrowserApp {
 
     // 监听页面标题变化
     this.mainWindow.webContents.on('page-title-updated', (event, title) => {
-      this.mainWindow.setTitle(`${title} - Electron Browser`);
+      this.mainWindow.setTitle(`${title}`);
     });
-
-    // this.setupIPC();
   }
 
   setupIPC() {
@@ -213,6 +249,14 @@ class BrowserApp {
                 message: 'Electron 浏览器',
                 detail: '一个使用 Electron 构建的简单浏览器\n版本 1.0.0'
               });
+            }
+          },
+          {
+            label: 'Test',
+            click: () => {
+              if (this.mainWindow) {
+                this.mainWindow.loadURL('https://www.davidjones.com/search?q=Ultimate%20Cream');
+              }
             }
           }
         ]
