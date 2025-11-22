@@ -17,28 +17,6 @@ class BrowserApp {
     this.setupApp();
   }
 
-  // async handleHttpsRequest(originalRequest) {
-
-  //   const response = await this.http_handler.handleHttpsRequest(originalRequest);
-
-  //   // const cookies = this.extractCookiesFromHeaders(response.headers);
-  //   // // const savedCookies = [];
-
-  //   // for (const cookie of cookies) {
-  //   //     await this.saveCookie(originalRequest.url, cookie);
-  //   // }
-  //   return response;
-
-  //   // return new Promise((resolve, reject) => {
-  //   //   const urlObj = new URL(originalRequest.url);
-  //   //   const options = {
-  //   //     method: originalRequest.method,
-  //   //     hostname: urlObj.hostname,
-  //   //     port: urlObj.port || 443,   
-  //   //   }
-  //   // });
-  // }
-
   setupApp() {
     // 应用准备就绪
     this.app.whenReady().then(() => {
@@ -46,22 +24,52 @@ class BrowserApp {
       this.createMenu();
       this.setupIPC();
 
-      // session.defaultSession.webRequest.onSendHeaders((details, callback) => {
-      //   // console.log('发送请求头:', details.requestHeaders);
-      //   this.http_handler.handleHttpsRequest(details).then(() => {
-      //     console.log('保存完成:', details.url);
-      //   }).catch((err) => {
-      //     console.error('处理错误:', err);
-      //   });
+      // session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+      //   const data = this.http_handler.get_upload_data(details);
+      //   if (data && data.length > 0) {
+      //     console.log(`${Date.now()}_${details.id}_onBeforeRequest`, data);
+      //   }
+      //   // console.log(`${Date.now()}_${details.id}_onBeforeRequest`, details.url);
+      //   // this.http_handler.handleHttpsRequest(details).then(() => {
+      //   //   console.log('处理完成:', details.url.split('?')[0]);
+      //   // }).catch((err) => {
+      //   //   console.error('处理错误:', err);
+      //   // });
+      //   callback({ cancel: false });
       // });
-      session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      // session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      //   const data = this.http_handler.get_upload_data(details);
+      //   if (data && data.length > 0) {
+      //     console.log(`${Date.now()}_${details.id}_onBeforeSendHeaders`, data);
+      //   }
+      //   // console.log(`${Date.now()}_${details.id}_onBeforeSendHeaders`, data);
+      //   // this.http_handler.handleHttpsRequest(details).then(() => {
+      //   //   console.log('处理完成:', details.url.split('?')[0]);
+      //   // }).catch((err) => {
+      //   //   console.error('处理错误:', err);
+      //   // });
+      //   callback({ requestHeaders: details.requestHeaders });
+      // });
+      session.defaultSession.webRequest.onSendHeaders((details) => {
+        // const data = this.http_handler.get_upload_data(details);
+        // if (data && data.length > 0) {
+        //   console.log(`${Date.now()}_${details.id}_onSendHeaders`, data);
+        // }
+        // console.log(`${Date.now()}_${details.id}_onSendHeaders`, data);
+
         this.http_handler.handleHttpsRequest(details).then(() => {
-          console.log('保存完成:', details.url.split('?')[0]);
+          // console.log('保存完成:', details.url);
         }).catch((err) => {
           console.error('处理错误:', err);
         });
-        callback({ requestHeaders: details.requestHeaders });
       });
+      // session.defaultSession.webRequest.onCompleted((details) => {
+      //   const data = this.http_handler.get_upload_data(details);
+      //   if (data && data.length > 0) {
+      //     console.log(`${Date.now()}_${details.id}_onCompleted`, data);
+      //   }
+      //   // console.log(`${Date.now()}_${details.id}_onCompleted`, data);
+      // });
     });
     this.app.on('window-all-closed', () => {
       this.app.quit()

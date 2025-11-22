@@ -24,24 +24,24 @@ class HttpHandler {
     }
 
     async log_response(request, response) {
-        var should_log = false;
-        for (let i = 0; i < this.logDomains.length; i++) {
-            if (request.url.split("?")[0].includes(this.logDomains[i])) {
-                should_log = true;
-                break;
-            }
-        }
-        if (!should_log || request.resourceType === 'image' || request.resourceType === 'font' || request.resourceType === 'stylesheet' || request.url.includes("_next/static")) {
-            // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
-            // new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
-            return;
-        }
+        // var should_log = false;
+        // for (let i = 0; i < this.logDomains.length; i++) {
+        //     if (request.url.split("?")[0].includes(this.logDomains[i])) {
+        //         should_log = true;
+        //         break;
+        //     }
+        // }
+        // if (!should_log || request.resourceType === 'image' || request.resourceType === 'font' || request.resourceType === 'stylesheet' || request.url.includes("_next/static")) {
+        //     // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
+        //     // new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
+        //     return;
+        // }
 
         const cloned = response;
         let bodyPreview = '';
 
         try {
-            const filename = `${request.method}_${Date.now()}_${request.url.split('?')[0].split('//')[1]}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100);
+            const filename = `${Date.now()}_${request.method}_${request.url.split('?')[0].split('//')[1]}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100);
 
             const req_headers = JSON.stringify(request.requestHeaders);
             const resp_headers = JSON.stringify(cloned.headers);
@@ -51,7 +51,7 @@ class HttpHandler {
 
             const content_resp = cloned.responseData;
             if (request.method === 'POST') {
-                const content_req = await request.arrayBuffer()
+                const content_req = this.get_upload_data(request);
                 content = content + Buffer.from(content_req) + Buffer.from("\n===========================\n") + Buffer.from(content_resp);
             } else {
                 content = content + Buffer.from(content_resp);
@@ -65,7 +65,40 @@ class HttpHandler {
         console.log('📦 响应预览:', bodyPreview);
     }
 
+    get_upload_data(details) {
+        if (details.uploadData && details.uploadData.length > 0) {
+            for (let index = 0; index < details.uploadData.length; index++) {
+            // details.uploadData.forEach((dataPart, index) => {
+                // dataPart.bytes 包含原始的 Buffer 数据
+                const dataPart = details.uploadData[index];
+                if (dataPart.bytes) {
+                    try {
+                        // 将 Buffer 转换为字符串
+                        const postDataString = dataPart.bytes.toString('utf8');
+                        // console.log(`POST 数据 (部分 ${index + 1}):`, postDataString);
+                        return postDataString;
+                    } catch (error) {
+                        console.error('❌ 读取 POST 数据失败:', error);
+                    }
+                }
+            };
+        }
+        return "";
+    }
+
     async handleHttpsRequest(request) {
+        var should_log = false;
+        for (let i = 0; i < this.logDomains.length; i++) {
+            if (request.url.split("?")[0].includes(this.logDomains[i])) {
+                should_log = true;
+                break;
+            }
+        }
+        if (!should_log || !request.url.startsWith("https://") || request.resourceType === 'image' || request.resourceType === 'font' || request.resourceType === 'stylesheet' || request.url.includes("_next/static")) {
+            // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
+            // new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
+            return;
+        }
         const startTime = Date.now();
         // console.log('🔗 处理 HTTPS 请求:', request.url);
 
@@ -73,6 +106,8 @@ class HttpHandler {
             const url = new URL(request.url);
 
             const options = {
+                referer: request.referrer,
+                resourceType: request.resourceType,
                 hostname: url.hostname,
                 port: url.port || 443,
                 path: url.pathname + url.search,
@@ -125,7 +160,7 @@ class HttpHandler {
             originalRequest.method !== 'HEAD') {
 
             try {
-                const bodyBuffer = await originalRequest.arrayBuffer();
+                const bodyBuffer = this.get_upload_data(originalRequest)
                 if (bodyBuffer.byteLength > 0) {
                     req.write(Buffer.from(bodyBuffer));
                     // console.log('📤 发送请求体:', bodyBuffer.byteLength, 'bytes');
