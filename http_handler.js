@@ -42,19 +42,18 @@ class HttpHandler {
 
         try {
             const filename = `${Date.now()}_${request.method}_${request.url.split('?')[0].split('//')[1]}`.replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 100);
-
             const req_headers = JSON.stringify(request.requestHeaders);
             const resp_headers = JSON.stringify(cloned.headers);
-            var content = Buffer.from(request.method + " " + request.url.toString() + "\n" +
-                req_headers + "\n===========================\n"
-                + resp_headers + "\n===========================\n");
+            var content = Buffer.from(request.method + " " + request.url.toString() + "\n===========request header================\n" +
+                req_headers + "\n===========response header================\n"
+                + resp_headers);
 
-            const content_resp = cloned.responseData;
+            const content_resp = convert_response_data(cloned);// cloned.responseData;
             if (request.method === 'POST') {
                 const content_req = this.get_upload_data(request);
-                content = content + Buffer.from(content_req) + Buffer.from("\n===========================\n") + Buffer.from(content_resp);
+                content = content + Buffer.from("\n============post data===============\n") + Buffer.from(content_req) + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
             } else {
-                content = content + Buffer.from(content_resp);
+                content = content + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
             }
             bodyPreview = `保存响应内容到文件: ${filename} (大小: ${content.length} bytes)`;
             await this.saveBuffer(filename, content);
@@ -65,15 +64,24 @@ class HttpHandler {
         console.log('📦 响应预览:', bodyPreview);
     }
 
+    convert_response_data(response){
+        const contentType = response.headers['content-type'] || '';
+        if (contentType.includes('application/json')||contentType.startsWith('text/') || contentType.includes('application/javascript') || contentType.includes('application/xml')) {
+            return response.responseData.toString('utf8');
+        } else if (contentType.includes("br")){
+            return response.responseData.toString('utf8');
+        } else {
+            return `[非文本响应，内容长度: ${response.responseData.length} bytes]`;
+        } 
+    }
+
+
     get_upload_data(details) {
         if (details.uploadData && details.uploadData.length > 0) {
             for (let index = 0; index < details.uploadData.length; index++) {
-            // details.uploadData.forEach((dataPart, index) => {
-                // dataPart.bytes 包含原始的 Buffer 数据
                 const dataPart = details.uploadData[index];
                 if (dataPart.bytes) {
                     try {
-                        // 将 Buffer 转换为字符串
                         const postDataString = dataPart.bytes.toString('utf8');
                         // console.log(`POST 数据 (部分 ${index + 1}):`, postDataString);
                         return postDataString;
@@ -104,7 +112,10 @@ class HttpHandler {
 
         try {
             const url = new URL(request.url);
-
+            let headers = { ...request.requestHeaders };
+            // if (cookies) {
+            //     headers['Cookie'] = cookies;
+            // }
             const options = {
                 referer: request.referrer,
                 resourceType: request.resourceType,
@@ -112,7 +123,7 @@ class HttpHandler {
                 port: url.port || 443,
                 path: url.pathname + url.search,
                 method: request.method,
-                headers: request.headers, //this.prepareHeaders(request.headers),
+                headers: headers, //this.prepareHeaders(request.headers),
                 rejectUnauthorized: false, // 允许自签名证书
                 timeout: 30000
             };
@@ -209,12 +220,12 @@ class HttpHandler {
             });
 
             req.on('error', (error) => {
-                console.error('❌ 请求错误:', error);
+                console.error('❌ 请求错误:', error, originalRequest.url);
                 reject(error);
             });
 
             req.on('timeout', () => {
-                console.error('⏰ 请求超时');
+                console.error('⏰ 请求超时', originalRequest.url);
                 req.destroy();
                 reject(new Error('Request timeout'));
             });
@@ -230,28 +241,3 @@ class HttpHandler {
 }
 
 module.exports = HttpHandler;
-// http_handler = new BrowserAppBase();
-
-
-// protocol.registerHttpProtocol('https', this.handleYazzRequest.bind(this));
-// const filter = {
-//   urls: ['<all_urls>'] // 拦截所有网址的请求
-// };
-// session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
-//   var new_url = details.url;
-//   if (details.url.startsWith("https://") && !(details.resourceType === 'image' || details.resourceType === 'font' || details.resourceType === 'stylesheet' || details.url.includes("_next/static"))) {
-//     // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
-//     new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
-//     // callback({ cancel: false });
-//     if (new_url.indexOf("?") > 0) {
-//       new_url += "&_org_url=" + encodeURIComponent(details.url);
-//     } else {
-//       new_url += "?_org_url=" + encodeURIComponent(details.url);
-//     }
-//     console.log('onBeforeRequest:', new_url);
-//     // details.url = new_url;
-//     callback({ cancel: false, redirectURL: new_url});
-//   } else {
-//     callback({ cancel: false });
-//   }
-// });

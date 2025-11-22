@@ -17,6 +17,20 @@ class BrowserApp {
     this.setupApp();
   }
 
+  async handleHttpsRequest(details) {
+    try {
+      // const cookies = await session.defaultSession.cookies.get({url: details.url});
+      // const cookieString = cookies
+      //   .map(cookie => `${cookie.name}=${cookie.value}`)
+      //   .join('; ');
+      const response = await this.http_handler.handleHttpsRequest(details);
+      return response;
+    } catch (err) {
+      console.error('处理 HTTPS 请求时出错:', err);
+      throw err;
+    }
+  }
+
   setupApp() {
     // 应用准备就绪
     this.app.whenReady().then(() => {
@@ -24,52 +38,16 @@ class BrowserApp {
       this.createMenu();
       this.setupIPC();
 
-      // session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-      //   const data = this.http_handler.get_upload_data(details);
-      //   if (data && data.length > 0) {
-      //     console.log(`${Date.now()}_${details.id}_onBeforeRequest`, data);
-      //   }
-      //   // console.log(`${Date.now()}_${details.id}_onBeforeRequest`, details.url);
-      //   // this.http_handler.handleHttpsRequest(details).then(() => {
-      //   //   console.log('处理完成:', details.url.split('?')[0]);
-      //   // }).catch((err) => {
-      //   //   console.error('处理错误:', err);
-      //   // });
-      //   callback({ cancel: false });
-      // });
-      // session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-      //   const data = this.http_handler.get_upload_data(details);
-      //   if (data && data.length > 0) {
-      //     console.log(`${Date.now()}_${details.id}_onBeforeSendHeaders`, data);
-      //   }
-      //   // console.log(`${Date.now()}_${details.id}_onBeforeSendHeaders`, data);
-      //   // this.http_handler.handleHttpsRequest(details).then(() => {
-      //   //   console.log('处理完成:', details.url.split('?')[0]);
-      //   // }).catch((err) => {
-      //   //   console.error('处理错误:', err);
-      //   // });
-      //   callback({ requestHeaders: details.requestHeaders });
-      // });
       session.defaultSession.webRequest.onSendHeaders((details) => {
-        // const data = this.http_handler.get_upload_data(details);
-        // if (data && data.length > 0) {
-        //   console.log(`${Date.now()}_${details.id}_onSendHeaders`, data);
-        // }
-        // console.log(`${Date.now()}_${details.id}_onSendHeaders`, data);
-
-        this.http_handler.handleHttpsRequest(details).then(() => {
+        if (!details.url.startsWith('https://')) {
+          return;
+        }
+        this.handleHttpsRequest(details).then(() => {
           // console.log('保存完成:', details.url);
         }).catch((err) => {
           console.error('处理错误:', err);
         });
       });
-      // session.defaultSession.webRequest.onCompleted((details) => {
-      //   const data = this.http_handler.get_upload_data(details);
-      //   if (data && data.length > 0) {
-      //     console.log(`${Date.now()}_${details.id}_onCompleted`, data);
-      //   }
-      //   // console.log(`${Date.now()}_${details.id}_onCompleted`, data);
-      // });
     });
     this.app.on('window-all-closed', () => {
       this.app.quit()
