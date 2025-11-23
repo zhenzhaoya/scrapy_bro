@@ -38,14 +38,17 @@ class BrowserApp {
       this.createMenu();
       this.setupIPC();
 
-      session.defaultSession.webRequest.onSendHeaders((details) => {
+      session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
         if (!this.http_handler.check_need_log(details)) {
+          callback({ cancel: false, requestHeaders: details.requestHeaders })
           return;
         }
         this.handleHttpsRequest(details).then(() => {
           console.log('onSendHeaders:', details.id, details.url);
+        callback({ cancel: false, requestHeaders: details.requestHeaders })
         }).catch((err) => {
           console.error('处理错误:', err);
+          callback({ cancel: false, requestHeaders: details.requestHeaders })
         });
       });
       session.defaultSession.webRequest.onCompleted((details) => {
