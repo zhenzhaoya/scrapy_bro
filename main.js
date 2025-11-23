@@ -39,14 +39,20 @@ class BrowserApp {
       this.setupIPC();
 
       session.defaultSession.webRequest.onSendHeaders((details) => {
-        if (!details.url.startsWith('https://')) {
+        if (!this.http_handler.check_need_log(details)) {
           return;
         }
         this.handleHttpsRequest(details).then(() => {
-          // console.log('保存完成:', details.url);
+          console.log('onSendHeaders:', details.id, details.url);
         }).catch((err) => {
           console.error('处理错误:', err);
         });
+      });
+      session.defaultSession.webRequest.onCompleted((details) => {
+        if (!this.http_handler.check_need_log(details)) {
+          return;
+        }
+        console.log('onCompleted:', details.id, details.url);
       });
     });
     this.app.on('window-all-closed', () => {

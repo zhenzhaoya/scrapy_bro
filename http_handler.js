@@ -48,7 +48,7 @@ class HttpHandler {
                 req_headers + "\n===========response header================\n"
                 + resp_headers);
 
-            const content_resp = convert_response_data(cloned);// cloned.responseData;
+            const content_resp = this.convert_response_data(cloned);// cloned.responseData;
             if (request.method === 'POST') {
                 const content_req = this.get_upload_data(request);
                 content = content + Buffer.from("\n============post data===============\n") + Buffer.from(content_req) + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
@@ -94,7 +94,7 @@ class HttpHandler {
         return "";
     }
 
-    async handleHttpsRequest(request) {
+    check_need_log(request){
         var should_log = false;
         for (let i = 0; i < this.logDomains.length; i++) {
             if (request.url.split("?")[0].includes(this.logDomains[i])) {
@@ -105,6 +105,13 @@ class HttpHandler {
         if (!should_log || !request.url.startsWith("https://") || request.resourceType === 'image' || request.resourceType === 'font' || request.resourceType === 'stylesheet' || request.url.includes("_next/static")) {
             // console.log('Request type, URL:',details.type, details.resourceType, details.url); // 查看请求的 URL
             // new_url = new_url.replace(/https:\/\/[^\/]+/, "http://localhost:7777");
+            return false;
+        }
+        return true;
+    }
+    async handleHttpsRequest(request) {
+        var should_log = this.check_need_log(request);
+        if (!should_log){
             return;
         }
         const startTime = Date.now();
