@@ -2,6 +2,7 @@ const path = require('path');
 const https = require('https');
 const { URL } = require('url');
 const fs = require('fs').promises;
+const zlib = require('zlib');
 
 class HttpHandler {
     constructor() {
@@ -45,15 +46,15 @@ class HttpHandler {
             const req_headers = JSON.stringify(request.requestHeaders);
             const resp_headers = JSON.stringify(cloned.headers);
             var content = Buffer.from(request.method + " " + request.url.toString() + "\n===========request header================\n" +
-                req_headers + "\n===========response header================\n"
+                req_headers + "\n===========response header===============\n"
                 + resp_headers);
 
             const content_resp = this.convert_response_data(cloned);// cloned.responseData;
             if (request.method === 'POST') {
                 const content_req = this.get_upload_data(request);
-                content = content + Buffer.from("\n============post data===============\n") + Buffer.from(content_req) + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
+                content = content + Buffer.from("\n===========post data=====================\n") + Buffer.from(content_req) + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
             } else {
-                content = content + Buffer.from("\n============response data===============\n") + Buffer.from(content_resp);
+                content = content + Buffer.from("\n===========response data=================\n") + Buffer.from(content_resp);
             }
             bodyPreview = `保存响应内容到文件: ${filename} (大小: ${content.length} bytes)`;
             await this.saveBuffer(filename, content);
@@ -64,15 +65,15 @@ class HttpHandler {
         console.log('📦 响应预览:', bodyPreview);
     }
 
-    convert_response_data(response){
+    convert_response_data(response) {
         const contentType = response.headers['content-type'] || '';
-        if (contentType.includes('application/json')||contentType.startsWith('text/') || contentType.includes('application/javascript') || contentType.includes('application/xml')) {
+        if (contentType.includes('application/json') || contentType.startsWith('text/') || contentType.includes('application/javascript') || contentType.includes('application/xml')) {
             return response.responseData.toString('utf8');
-        } else if (contentType.includes("br")){
+        } else if (contentType.includes("br")) {
             return response.responseData.toString('utf8');
         } else {
             return `[非文本响应，内容长度: ${response.responseData.length} bytes]`;
-        } 
+        }
     }
 
 
@@ -94,7 +95,7 @@ class HttpHandler {
         return "";
     }
 
-    check_need_log(request){
+    check_need_log(request) {
         var should_log = false;
         for (let i = 0; i < this.logDomains.length; i++) {
             if (request.url.split("?")[0].includes(this.logDomains[i])) {
@@ -111,7 +112,7 @@ class HttpHandler {
     }
     async handleHttpsRequest(request) {
         var should_log = this.check_need_log(request);
-        if (!should_log){
+        if (!should_log) {
             return;
         }
         const startTime = Date.now();
@@ -134,21 +135,18 @@ class HttpHandler {
                 rejectUnauthorized: false, // 允许自签名证书
                 timeout: 30000
             };
-
-            // console.log('🔧 请求选项:', JSON.stringify({
-            //     hostname: options.hostname,
-            //     path: options.path,
-            //     method: options.method
-            // }));
-
-            const response = await this.makeHttpsRequest(options, request);
-            await this.log_response(request, response);
-
-            const duration = Date.now() - startTime;
-
-            // console.log(`✅ 请求成功: ${response.status} (${duration}ms)`);
-            return response;
-
+            for (let i =0; i < 2; i++) {
+                try {
+                    const response = await this.makeHttpsRequest(options, request);
+                    await this.log_response(request, response);
+                    const duration = Date.now() - startTime;
+                    console.log(`✅ 请求成功: ${request.id} ${response.status} (${duration}ms)`);
+                    return response;
+                } catch (error) {
+                    console.error('❌ HTTPS 请求失败:', error);
+                    return this.createErrorResponse(500, `HTTPS request failed: ${error.message}`);
+                }
+            }
         } catch (error) {
             console.error('❌ HTTPS 请求失败:', error);
             return this.createErrorResponse(500, `HTTPS request failed: ${error.message}`);
@@ -214,15 +212,51 @@ class HttpHandler {
                     const responseData = Buffer.concat(chunks);
 
                     // console.log('📦 响应数据长度:', responseData.length);
-
-                    const response = {
-                        status: statusCode,
-                        statusText: statusMessage,
-                        headers: responseHeaders,
-                        responseData: responseData
-                    };
-
-                    resolve(response);
+                    if (responseHeaders['content-encoding'] === 'br') {
+                        try {
+                            const decompressed = zlib.brotliDecompressSync(responseData);
+                            return resolve({
+                                status: statusCode,
+                                statusText: statusMessage,
+                                headers: responseHeaders,
+                                responseData: decompressed
+                            });
+                        } catch (error) {
+                            console.error('❌ Brotli 解压失败:', error);
+                        }
+                    }else if (responseHeaders['content-encoding'] === 'gzip') {
+                        try {
+                            const decompressed = zlib.gunzipSync(responseData);
+                            return resolve({
+                                status: statusCode,
+                                statusText: statusMessage,
+                                headers: responseHeaders,
+                                responseData: decompressed
+                            });
+                        } catch (error) {
+                            console.error('❌ Gzip 解压失败:', error);
+                        }
+                    } else if (responseHeaders['content-encoding'] === 'deflate') {
+                        try {
+                            const decompressed = zlib.inflateSync(responseData);
+                            return resolve({
+                                status: statusCode,
+                                statusText: statusMessage,
+                                headers: responseHeaders,
+                                responseData: decompressed
+                            });
+                        } catch (error) {
+                            console.error('❌ Deflate 解压失败:', error);
+                        }
+                    } else {
+                        const response = {
+                            status: statusCode,
+                            statusText: statusMessage,
+                            headers: responseHeaders,
+                            responseData: responseData
+                        };
+                        return resolve(response);
+                    }
                 });
             });
 
